@@ -8,7 +8,7 @@ services:
     container_name: nuvyhub_web
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8080:8080"  # Solo localhost
+      - "127.0.0.1:8080:8080" # Solo localhost
     volumes:
       - nuvy_builds:/app/builds:rw
     environment:
@@ -29,7 +29,7 @@ services:
     container_name: nuvyhub_builder
     command: ["tail", "-f", "/dev/null"]
     volumes:
-      - nuvy_builds:/out:rw
+      - nuvy_builds:/app/builds:rw # ✅ Cambiar de /out a /app/builds
     networks:
       - nuvy-network
 
@@ -40,17 +40,17 @@ services:
     container_name: nuvyhub_docker_proxy
     restart: unless-stopped
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro  # Solo lectura
+      - /var/run/docker.sock:/var/run/docker.sock:ro # Solo lectura
     environment:
       # Permisos mínimos necesarios
-      CONTAINERS: 1      # Permite listar/ver contenedores
-      POST: 1           # Permite crear/ejecutar contenedores
-      BUILD: 0          # NO permite construir imágenes
-      COMMIT: 0         # NO permite commits
+      CONTAINERS: 1 # Permite listar/ver contenedores
+      POST: 1 # Permite crear/ejecutar contenedores
+      BUILD: 0 # NO permite construir imágenes
+      COMMIT: 0 # NO permite commits
       CONFIGS: 0
       DISTRIBUTION: 0
-      EXEC: 1           # Permite docker exec (necesario)
-      IMAGES: 1         # Permite listar imágenes
+      EXEC: 1 # Permite docker exec (necesario)
+      IMAGES: 1 # Permite listar imágenes
       INFO: 0
       NETWORKS: 0
       NODES: 0

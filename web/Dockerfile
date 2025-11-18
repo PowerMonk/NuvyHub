@@ -17,7 +17,7 @@ USER root
 RUN printf '#!/bin/sh\n\
 mkdir -p /app/builds\n\
 chown -R deno:deno /app/builds\n\
-exec runuser -u deno -- deno run --allow-net --allow-read --allow-write=/app/builds --allow-env /app/server.ts\n\
+exec deno run --allow-net --allow-read --allow-write=/app/builds --allow-env /app/server.ts\n\
 ' > /entrypoint.sh && chmod +x /entrypoint.sh
 
 EXPOSE 8080

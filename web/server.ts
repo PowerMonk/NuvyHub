@@ -14,7 +14,7 @@ console.log(`🐳 Docker Host: ${DOCKER_HOST}`);
 async function dockerAPI(endpoint: string, options: RequestInit = {}) {
   const baseURL = DOCKER_HOST.replace("tcp://", "http://");
   const url = `${baseURL}${endpoint}`;
-  
+
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -53,14 +53,17 @@ async function handler(req: Request): Promise<Response> {
 
   // Rutas
   if (url.pathname === "/status" && req.method === "GET") {
-    return new Response(JSON.stringify({ 
-      status: "online", 
-      service: "NuvyHub Compiler",
-      timestamp: new Date().toISOString()
-    }), { 
-      status: 200, 
-      headers: { ...headers, "Content-Type": "application/json" } 
-    });
+    return new Response(
+      JSON.stringify({
+        status: "online",
+        service: "NuvyHub Compiler",
+        timestamp: new Date().toISOString(),
+      }),
+      {
+        status: 200,
+        headers: { ...headers, "Content-Type": "application/json" },
+      }
+    );
   }
 
   if (url.pathname === "/build" && req.method === "POST") {
@@ -79,18 +82,24 @@ async function handler(req: Request): Promise<Response> {
 }
 
 // Handler de compilación
-async function handleBuild(req: Request, headers: Record<string, string>): Promise<Response> {
+async function handleBuild(
+  req: Request,
+  headers: Record<string, string>
+): Promise<Response> {
   try {
     const formData = await req.formData();
     const codeFile = formData.get("code") as File | null;
 
     if (!codeFile || !codeFile.name.endsWith(".c")) {
-      return new Response(JSON.stringify({ 
-        error: "Debes subir un archivo .c válido" 
-      }), { 
-        status: 400, 
-        headers: { ...headers, "Content-Type": "application/json" } 
-      });
+      return new Response(
+        JSON.stringify({
+          error: "Debes subir un archivo .c válido",
+        }),
+        {
+          status: 400,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const jobId = generateId();
@@ -101,17 +110,18 @@ async function handleBuild(req: Request, headers: Record<string, string>): Promi
     // Guardar archivo fuente
     const code = await codeFile.arrayBuffer();
     await Deno.writeFile(sourcePath, new Uint8Array(code));
-    
+
     console.log(`⚙️ Compilando job: ${jobId}`);
 
     // Ejecutar compilación en el Builder usando Docker API
     const execConfig = {
       AttachStdout: true,
       AttachStderr: true,
+      // Cmd: ["/app/compile-rp2040.sh", `/out/${outputName}.c`, outputName],
       Cmd: [
         "/app/compile-rp2040.sh",
-        `/out/${outputName}.c`,
-        outputName
+        `/app/builds/${outputName}.c`,
+        outputName,
       ],
     };
 
@@ -127,13 +137,10 @@ async function handleBuild(req: Request, headers: Record<string, string>): Promi
     const { Id: execId } = await execCreateResp.json();
 
     // Ejecutar el comando
-    const execStartResp = await dockerAPI(
-      `/exec/${execId}/start`,
-      {
-        method: "POST",
-        body: JSON.stringify({ Detach: false }),
-      }
-    );
+    const execStartResp = await dockerAPI(`/exec/${execId}/start`, {
+      method: "POST",
+      body: JSON.stringify({ Detach: false }),
+    });
 
     const output = await execStartResp.text();
 
@@ -143,77 +150,92 @@ async function handleBuild(req: Request, headers: Record<string, string>): Promi
 
     if (inspectData.ExitCode !== 0) {
       console.error(`❌ Error en compilación de ${jobId}:`, output);
-      
+
       // Limpiar archivo fuente en caso de error
       try {
         await Deno.remove(sourcePath);
       } catch (e) {
         console.error("Error limpiando fuente:", e);
       }
-      
-      return new Response(JSON.stringify({ 
-        error: "Error en compilación", 
-        log: output 
-      }), { 
-        status: 500, 
-        headers: { ...headers, "Content-Type": "application/json" } 
-      });
+
+      return new Response(
+        JSON.stringify({
+          error: "Error en compilación",
+          log: output,
+        }),
+        {
+          status: 500,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
     }
 
     // Verificar que el UF2 existe
     try {
       await Deno.stat(outputPath);
       console.log(`✅ Compilación exitosa: ${outputName}.uf2`);
-      
+
       // Limpiar archivo fuente DESPUÉS de éxito
       try {
         await Deno.remove(sourcePath);
       } catch (e) {
         console.error("Error limpiando fuente:", e);
       }
-      
-      return new Response(JSON.stringify({
-        success: true,
-        downloadUrl: `/download/${outputName}.uf2`,
-        log: output,
-        jobId,
-      }), { 
-        status: 200, 
-        headers: { ...headers, "Content-Type": "application/json" } 
-      });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          downloadUrl: `/download/${outputName}.uf2`,
+          log: output,
+          jobId,
+        }),
+        {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
     } catch (e) {
       console.error(`❌ Binario no encontrado: ${outputPath}`);
-      
+
       // Limpiar archivo fuente si el binario no se generó
       try {
         await Deno.remove(sourcePath);
       } catch (cleanupErr) {
         console.error("Error limpiando fuente:", cleanupErr);
       }
-      
-      return new Response(JSON.stringify({ 
-        error: "Binario no generado", 
-        log: output 
-      }), { 
-        status: 500, 
-        headers: { ...headers, "Content-Type": "application/json" } 
-      });
-    }
 
+      return new Response(
+        JSON.stringify({
+          error: "Binario no generado",
+          log: output,
+        }),
+        {
+          status: 500,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    }
   } catch (error) {
     console.error("❌ Error general:", error);
-    return new Response(JSON.stringify({ 
-      error: "Error interno del servidor",
-      details: error.message 
-    }), { 
-      status: 500, 
-      headers: { ...headers, "Content-Type": "application/json" } 
-    });
+    const details = error instanceof Error ? error.message : String(error);
+    return new Response(
+      JSON.stringify({
+        error: "Error interno del servidor",
+        details,
+      }),
+      {
+        status: 500,
+        headers: { ...headers, "Content-Type": "application/json" },
+      }
+    );
   }
 }
 
 // Handler de descarga
-async function handleDownload(path: string, headers: Record<string, string>): Promise<Response> {
+async function handleDownload(
+  path: string,
+  headers: Record<string, string>
+): Promise<Response> {
   const filename = path.split("/").pop() || "";
   const fullPath = `${BUILD_DIR}/${filename}`;
 
@@ -223,7 +245,7 @@ async function handleDownload(path: string, headers: Record<string, string>): Pr
 
   try {
     const file = await Deno.readFile(fullPath);
-    
+
     // Eliminar archivo después de 10 segundos
     setTimeout(async () => {
       try {
@@ -243,9 +265,9 @@ async function handleDownload(path: string, headers: Record<string, string>): Pr
       },
     });
   } catch (e) {
-    return new Response("Archivo no encontrado o expirado", { 
+    return new Response("Archivo no encontrado o expirado", {
       status: 404,
-      headers 
+      headers,
     });
   }
 }

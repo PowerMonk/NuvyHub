@@ -4,7 +4,7 @@ set -e
 SOURCE_PATH=$1
 OUTPUT_NAME=$2
 BUILD_DIR="/tmp/build_$$"
-OUTPUT_DIR="/out"
+OUTPUT_DIR="/app/builds"  # ✅ Cambiar de /out a /app/builds
 
 echo "🔧 Iniciando compilación: $OUTPUT_NAME"
 echo "📄 Archivo fuente: $SOURCE_PATH"
@@ -22,7 +22,6 @@ fi
 
 # Setup
 mkdir -p "$BUILD_DIR"
-mkdir -p "$OUTPUT_DIR"
 cp "$SOURCE_PATH" "$BUILD_DIR/main.c"
 
 # CMakeLists.txt
@@ -41,7 +40,7 @@ pico_enable_stdio_uart(firmware 0)
 pico_add_extra_outputs(firmware)
 EOF
 
-# Compilación CON output visible
+# Compilación
 cd "$BUILD_DIR"
 echo "🔨 Ejecutando CMake..."
 cmake -DCMAKE_BUILD_TYPE=Release . 2>&1

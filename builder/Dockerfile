@@ -12,7 +12,8 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     libstdc++-arm-none-eabi-newlib \
     wget \
-    python3 \    
+    python3 \
+    dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
 # Descargar Pico SDK
@@ -26,11 +27,11 @@ ENV PICO_SDK_PATH=/pico/pico-sdk
 
 # Crear directorio de trabajo
 WORKDIR /app
-RUN mkdir -p /out
+RUN mkdir -p /app/builds
 
 # Copiar script de compilación
 COPY compile-rp2040.sh /app/
-RUN chmod +x /app/compile-rp2040.sh
+RUN dos2unix /app/compile-rp2040.sh && chmod +x /app/compile-rp2040.sh
 
 # El contenedor se mantiene vivo esperando comandos
 CMD ["tail", "-f", "/dev/null"]
