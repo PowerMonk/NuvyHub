@@ -2,66 +2,59 @@ volumes:
   nuvy_builds:
 
 services:
-  # Servicio Web (Deno) - SIN socket montado
+  # Servicio Web (Deno)
   web:
     build: ./web
     container_name: nuvyhub_web
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8080:8080" # Solo localhost
+      - "127.0.0.1:8080:8080"
     volumes:
       - nuvy_builds:/app/builds:rw
     environment:
       - BUILD_DIR=/app/builds
       - DOCKER_HOST=tcp://docker-proxy:2375
-      - BUILDER_IMAGE=nuvyhub-builder
     depends_on:
-      - docker-proxy
-    # Usuario no-root para mayor seguridad
-    # Quito la linea del user por problemas de permisos
-    # user: "1000:1000"
+      builder:
+        condition: service_started
+      docker-proxy:
+        condition: service_started
     networks:
       - nuvy-network
 
-  # Contenedor Builder (con toolchain)
+  # Contenedor Builder (permanece activo esperando comandos)
   builder:
     build: ./builder
     container_name: nuvyhub_builder
-    command: ["tail", "-f", "/dev/null"]
+    restart: unless-stopped
     volumes:
-      - nuvy_builds:/app/builds:rw # ✅ Cambiar de /out a /app/builds
+      - nuvy_builds:/app/builds:rw
+    # El CMD ya está definido en el Dockerfile (tail -f /dev/null)
+    # No necesitas sobrescribirlo aquí
     networks:
       - nuvy-network
+    # Healthcheck para verificar que está corriendo
+    healthcheck:
+      test: ["CMD", "test", "-f", "/app/compile-esp32.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
-  # Docker Socket Proxy (Tecnall/docker-socket-proxy)
-  # Este contenedor FILTRA qué comandos Docker están permitidos
+  # Docker Socket Proxy
   docker-proxy:
     image: tecnativa/docker-socket-proxy:latest
     container_name: nuvyhub_docker_proxy
     restart: unless-stopped
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro # Solo lectura
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
-      # Permisos mínimos necesarios
-      CONTAINERS: 1 # Permite listar/ver contenedores
-      POST: 1 # Permite crear/ejecutar contenedores
-      BUILD: 0 # NO permite construir imágenes
-      COMMIT: 0 # NO permite commits
-      CONFIGS: 0
-      DISTRIBUTION: 0
-      EXEC: 1 # Permite docker exec (necesario)
-      IMAGES: 1 # Permite listar imágenes
-      INFO: 0
-      NETWORKS: 0
-      NODES: 0
-      PLUGINS: 0
-      SERVICES: 0
-      SESSION: 0
-      SWARM: 0
-      SYSTEM: 0
-      TASKS: 0
-      VOLUMES: 0
-      # LOG_LEVEL: debug  # Descomenta para debug
+      CONTAINERS: 1
+      POST: 1
+      BUILD: 0
+      COMMIT: 0
+      EXEC: 1
+      IMAGES: 1
+      LOG_LEVEL: info
     networks:
       - nuvy-network
 

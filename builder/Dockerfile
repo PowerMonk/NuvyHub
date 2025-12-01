@@ -1,37 +1,27 @@
-FROM ubuntu:22.04
+FROM espressif/idf:v5.1
 
-# Evitar prompts interactivos
-ENV DEBIAN_FRONTEND=noninteractive
+# Cambiar a root para instalar paquetes adicionales
+USER root
 
-# Instalar dependencias base
+# Instalar PlatformIO para soporte Arduino
 RUN apt-get update && apt-get install -y \
-    git \
-    cmake \
-    gcc-arm-none-eabi \
-    libnewlib-arm-none-eabi \
-    build-essential \
-    libstdc++-arm-none-eabi-newlib \
-    wget \
-    python3 \
+    python3-pip \
     dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
-# Descargar Pico SDK
-WORKDIR /pico
-RUN git clone --depth 1 --branch 1.5.1 https://github.com/raspberrypi/pico-sdk.git
-WORKDIR /pico/pico-sdk
-RUN git submodule update --init
+RUN pip3 install --upgrade pip && \
+    pip3 install platformio
 
-# Variables de entorno
-ENV PICO_SDK_PATH=/pico/pico-sdk
+# Pre-instalar plataforma ESP32 para PlatformIO (Arduino)
+RUN pio platform install espressif32
 
-# Crear directorio de trabajo
-WORKDIR /app
+# Crear directorios de trabajo
 RUN mkdir -p /app/builds
+WORKDIR /app
 
 # Copiar script de compilación
-COPY compile-rp2040.sh /app/
-RUN dos2unix /app/compile-rp2040.sh && chmod +x /app/compile-rp2040.sh
+COPY compile-esp32.sh /app/
+RUN dos2unix /app/compile-esp32.sh && chmod +x /app/compile-esp32.sh
 
-# El contenedor se mantiene vivo esperando comandos
+# Mantener contenedor activo
 CMD ["tail", "-f", "/dev/null"]

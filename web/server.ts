@@ -90,10 +90,13 @@ async function handleBuild(
     const formData = await req.formData();
     const codeFile = formData.get("code") as File | null;
 
-    if (!codeFile || !codeFile.name.endsWith(".c")) {
+    if (
+      !codeFile ||
+      (!codeFile.name.endsWith(".ino") && !codeFile.name.endsWith(".c"))
+    ) {
       return new Response(
         JSON.stringify({
-          error: "Debes subir un archivo .c válido",
+          error: "Debes subir un archivo .ino (Arduino) o .c (ESP-IDF) válido",
         }),
         {
           status: 400,
@@ -104,8 +107,15 @@ async function handleBuild(
 
     const jobId = generateId();
     const outputName = `build_${jobId}`;
-    const sourcePath = `${BUILD_DIR}/${outputName}.c`;
-    const outputPath = `${BUILD_DIR}/${outputName}.uf2`;
+
+    // Detectar extensión del archivo (.ino o .c)
+    const fileExt = codeFile.name.endsWith(".c") ? ".c" : ".ino";
+    const sourcePath = `${BUILD_DIR}/${outputName}${fileExt}`;
+    const outputPath = `${BUILD_DIR}/${outputName}.bin`;
+
+    console.log(`📝 Archivo original: ${codeFile.name}`);
+    console.log(`📝 Extensión detectada: ${fileExt}`);
+    console.log(`📝 Path destino: ${sourcePath}`);
 
     // Guardar archivo fuente
     const code = await codeFile.arrayBuffer();
@@ -117,10 +127,9 @@ async function handleBuild(
     const execConfig = {
       AttachStdout: true,
       AttachStderr: true,
-      // Cmd: ["/app/compile-rp2040.sh", `/out/${outputName}.c`, outputName],
       Cmd: [
-        "/app/compile-rp2040.sh",
-        `/app/builds/${outputName}.c`,
+        "/app/compile-esp32.sh",
+        `/app/builds/${outputName}${fileExt}`,
         outputName,
       ],
     };
@@ -170,10 +179,10 @@ async function handleBuild(
       );
     }
 
-    // Verificar que el UF2 existe
+    // Verificar que el BIN existe
     try {
       await Deno.stat(outputPath);
-      console.log(`✅ Compilación exitosa: ${outputName}.uf2`);
+      console.log(`✅ Compilación exitosa: ${outputName}.bin`);
 
       // Limpiar archivo fuente DESPUÉS de éxito
       try {
@@ -185,7 +194,7 @@ async function handleBuild(
       return new Response(
         JSON.stringify({
           success: true,
-          downloadUrl: `/download/${outputName}.uf2`,
+          downloadUrl: `/download/${outputName}.bin`,
           log: output,
           jobId,
         }),
@@ -239,7 +248,7 @@ async function handleDownload(
   const filename = path.split("/").pop() || "";
   const fullPath = `${BUILD_DIR}/${filename}`;
 
-  if (!filename.endsWith(".uf2")) {
+  if (!filename.endsWith(".bin")) {
     return new Response("Archivo no válido", { status: 400 });
   }
 
@@ -350,14 +359,15 @@ function getLandingHTML(): string {
 <body>
   <div class="container">
     <h1>🚀 NuvyHub</h1>
-    <p>Compilador RP2040 en la nube</p>
+    <p>Compilador ESP32 en la nube</p>
     
     <div class="drop-zone" id="dropZone">
-      📁 Arrastra tu archivo .c aquí<br>
+      📁 Arrastra tu archivo .ino o .c aquí<br>
+      <small style="font-size: 0.9em; opacity: 0.8;">Arduino (.ino) o ESP-IDF (.c)</small><br>
       o haz clic para seleccionar
     </div>
     
-    <input type="file" id="fileInput" accept=".c">
+    <input type="file" id="fileInput" accept=".ino,.c">
     
     <div class="status" id="status"></div>
   </div>
@@ -391,8 +401,8 @@ function getLandingHTML(): string {
     });
 
     async function uploadFile(file) {
-      if (!file.name.endsWith('.c')) {
-        showStatus('error', '❌ Solo archivos .c son válidos');
+      if (!file.name.endsWith('.ino') && !file.name.endsWith('.c')) {
+        showStatus('error', '❌ Solo archivos .ino (Arduino) o .c (ESP-IDF) son válidos');
         return;
       }
 
@@ -412,7 +422,7 @@ function getLandingHTML(): string {
         if (result.success) {
           showStatus('success', 
             \`✅ Compilación exitosa!<br>
-            <a href="\${result.downloadUrl}" class="btn">Descargar UF2</a>\`
+            <a href="\${result.downloadUrl}" class="btn">Descargar BIN</a>\`
           );
         } else {
           showStatus('error', \`❌ Error: \${result.error}\`);
