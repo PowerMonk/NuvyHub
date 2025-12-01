@@ -105,7 +105,7 @@ async function handleBuild(
     const jobId = generateId();
     const outputName = `build_${jobId}`;
     const sourcePath = `${BUILD_DIR}/${outputName}.c`;
-    const outputPath = `${BUILD_DIR}/${outputName}.uf2`;
+    const outputPath = `${BUILD_DIR}/${outputName}.bin`;
 
     // Guardar archivo fuente
     const code = await codeFile.arrayBuffer();
@@ -117,12 +117,7 @@ async function handleBuild(
     const execConfig = {
       AttachStdout: true,
       AttachStderr: true,
-      // Cmd: ["/app/compile-rp2040.sh", `/out/${outputName}.c`, outputName],
-      Cmd: [
-        "/app/compile-rp2040.sh",
-        `/app/builds/${outputName}.c`,
-        outputName,
-      ],
+      Cmd: ["/app/compile-esp32.sh", `/app/builds/${outputName}.c`, outputName],
     };
 
     // Crear exec instance
@@ -170,10 +165,10 @@ async function handleBuild(
       );
     }
 
-    // Verificar que el UF2 existe
+    // Verificar que el BIN existe
     try {
       await Deno.stat(outputPath);
-      console.log(`✅ Compilación exitosa: ${outputName}.uf2`);
+      console.log(`✅ Compilación exitosa: ${outputName}.bin`);
 
       // Limpiar archivo fuente DESPUÉS de éxito
       try {
@@ -185,7 +180,7 @@ async function handleBuild(
       return new Response(
         JSON.stringify({
           success: true,
-          downloadUrl: `/download/${outputName}.uf2`,
+          downloadUrl: `/download/${outputName}.bin`,
           log: output,
           jobId,
         }),
@@ -239,7 +234,7 @@ async function handleDownload(
   const filename = path.split("/").pop() || "";
   const fullPath = `${BUILD_DIR}/${filename}`;
 
-  if (!filename.endsWith(".uf2")) {
+  if (!filename.endsWith(".bin")) {
     return new Response("Archivo no válido", { status: 400 });
   }
 
@@ -350,7 +345,7 @@ function getLandingHTML(): string {
 <body>
   <div class="container">
     <h1>🚀 NuvyHub</h1>
-    <p>Compilador RP2040 en la nube</p>
+    <p>Compilador ESP32 en la nube</p>
     
     <div class="drop-zone" id="dropZone">
       📁 Arrastra tu archivo .c aquí<br>
@@ -412,7 +407,7 @@ function getLandingHTML(): string {
         if (result.success) {
           showStatus('success', 
             \`✅ Compilación exitosa!<br>
-            <a href="\${result.downloadUrl}" class="btn">Descargar UF2</a>\`
+            <a href="\${result.downloadUrl}" class="btn">Descargar BIN</a>\`
           );
         } else {
           showStatus('error', \`❌ Error: \${result.error}\`);
