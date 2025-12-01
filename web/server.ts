@@ -90,10 +90,13 @@ async function handleBuild(
     const formData = await req.formData();
     const codeFile = formData.get("code") as File | null;
 
-    if (!codeFile || !codeFile.name.endsWith(".c")) {
+    if (
+      !codeFile ||
+      (!codeFile.name.endsWith(".ino") && !codeFile.name.endsWith(".c"))
+    ) {
       return new Response(
         JSON.stringify({
-          error: "Debes subir un archivo .c válido",
+          error: "Debes subir un archivo .ino (Arduino) o .c (ESP-IDF) válido",
         }),
         {
           status: 400,
@@ -104,8 +107,15 @@ async function handleBuild(
 
     const jobId = generateId();
     const outputName = `build_${jobId}`;
-    const sourcePath = `${BUILD_DIR}/${outputName}.c`;
+
+    // Detectar extensión del archivo (.ino o .c)
+    const fileExt = codeFile.name.endsWith(".c") ? ".c" : ".ino";
+    const sourcePath = `${BUILD_DIR}/${outputName}${fileExt}`;
     const outputPath = `${BUILD_DIR}/${outputName}.bin`;
+
+    console.log(`📝 Archivo original: ${codeFile.name}`);
+    console.log(`📝 Extensión detectada: ${fileExt}`);
+    console.log(`📝 Path destino: ${sourcePath}`);
 
     // Guardar archivo fuente
     const code = await codeFile.arrayBuffer();
@@ -117,7 +127,11 @@ async function handleBuild(
     const execConfig = {
       AttachStdout: true,
       AttachStderr: true,
-      Cmd: ["/app/compile-esp32.sh", `/app/builds/${outputName}.c`, outputName],
+      Cmd: [
+        "/app/compile-esp32.sh",
+        `/app/builds/${outputName}${fileExt}`,
+        outputName,
+      ],
     };
 
     // Crear exec instance
@@ -348,11 +362,12 @@ function getLandingHTML(): string {
     <p>Compilador ESP32 en la nube</p>
     
     <div class="drop-zone" id="dropZone">
-      📁 Arrastra tu archivo .c aquí<br>
+      📁 Arrastra tu archivo .ino o .c aquí<br>
+      <small style="font-size: 0.9em; opacity: 0.8;">Arduino (.ino) o ESP-IDF (.c)</small><br>
       o haz clic para seleccionar
     </div>
     
-    <input type="file" id="fileInput" accept=".c">
+    <input type="file" id="fileInput" accept=".ino,.c">
     
     <div class="status" id="status"></div>
   </div>
@@ -386,8 +401,8 @@ function getLandingHTML(): string {
     });
 
     async function uploadFile(file) {
-      if (!file.name.endsWith('.c')) {
-        showStatus('error', '❌ Solo archivos .c son válidos');
+      if (!file.name.endsWith('.ino') && !file.name.endsWith('.c')) {
+        showStatus('error', '❌ Solo archivos .ino (Arduino) o .c (ESP-IDF) son válidos');
         return;
       }
 

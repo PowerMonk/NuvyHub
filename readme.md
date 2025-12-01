@@ -1,21 +1,24 @@
 # NuvyHub
 
-NuvyHub is a cloud-based ESP32 firmware compiler. Upload your C source code and get a compiled .bin file ready to flash to your ESP32 board.
+NuvyHub is a cloud-based ESP32 firmware compiler supporting **both Arduino and ESP-IDF frameworks**. Upload your Arduino sketch (.ino) or ESP-IDF C code (.c) and get a compiled .bin file ready to flash to your ESP32 board.
 
 ## Features
 
-- 🚀 Web-based C code compilation for ESP32 using ESP-IDF
+- 🚀 **Dual Framework Support**: Arduino (.ino) OR ESP-IDF (.c)
+- 🔄 Automatic framework detection based on file extension
 - 🐳 Fully containerized with Docker
 - 🔒 Secure Docker socket proxy configuration
-- ⚡ Fast builds using ESP-IDF toolchain
+- ⚡ Fast builds using PlatformIO (Arduino) and ESP-IDF v5.1
 - 🌐 Simple drag-and-drop web interface
+- 📶 Full WiFi, WebServer, and all Arduino ESP32 libraries support
+- ⚙️ Low-level GPIO, FreeRTOS, and ESP-IDF native APIs support
 
 ## Architecture
 
 The project consists of three main services:
 
 - **web**: Deno-based HTTP server that handles file uploads and serves the web UI
-- **builder**: ESP-IDF container with full ESP32 toolchain for C compilation
+- **builder**: Hybrid container with both PlatformIO (Arduino) and ESP-IDF (native C) toolchains
 - **docker-proxy**: Security layer that filters allowed Docker API commands
 
 ## How to Run
@@ -45,7 +48,7 @@ docker-compose up --build
    - Local: http://localhost:8080
    - Remote: Through Cloudflare tunnel (see below)
 
-4. Upload your `.ino` file and download the compiled `.bin` file
+4. Upload your `.ino` (Arduino) or `.c` (ESP-IDF) file and download the compiled `.bin` file
 
 ### Cloudflare Tunnel (Optional)
 
@@ -71,12 +74,22 @@ NuvyHub/
 
 ## Compilation Process
 
-The server follows these steps:
+The server automatically detects the file type and chooses the appropriate toolchain:
 
-1. Receives C code file (main.c)
-2. Creates ESP-IDF project structure in `/tmp`
-3. Generates CMakeLists.txt files
-4. Compiles with ESP-IDF toolchain (`idf.py build`)
+### Arduino (.ino files)
+
+1. Receives Arduino sketch file
+2. Creates PlatformIO project structure in `/tmp`
+3. Generates platformio.ini configuration
+4. Compiles with PlatformIO (`pio run`)
+5. Returns the compiled firmware.bin
+
+### ESP-IDF (.c files)
+
+1. Receives C source file
+2. Creates ESP-IDF project structure with CMakeLists.txt
+3. Configures for ESP32 target (`idf.py set-target esp32`)
+4. Compiles with ESP-IDF (`idf.py build`)
 5. Returns the compiled firmware.bin
 
 ## Development Notes
@@ -84,9 +97,73 @@ The server follows these steps:
 - The web server runs on port 8080 (bound to localhost only)
 - Builds are stored in the `nuvy_builds` Docker volume
 - Compiled binaries are automatically deleted 10 seconds after download
-- Source files (.c) are cleaned up after successful compilation
-- Uses ESP-IDF v5.1 for compilation
+- Source files (.ino/.c) are cleaned up after successful compilation
+- Framework is auto-detected based on file extension (.ino = Arduino, .c = ESP-IDF)
+- Uses PlatformIO (Arduino) and ESP-IDF v5.1 (native C)
+- Supports all Arduino ESP32 libraries (WiFi, WebServer, Update, etc.)
+- Supports all ESP-IDF native APIs (FreeRTOS, GPIO driver, etc.)
 
-## Why is the gitignore ignoring the Deno files?
+## Code Examples
+
+### Arduino Framework (.ino files)
+
+```cpp
+#include <WiFi.h>
+#include <WebServer.h>
+
+const char* ssid = "YourSSID";
+const char* password = "YourPassword";
+
+WebServer server(80);
+
+void setup() {
+  Serial.begin(115200);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  server.on("/", []() {
+    server.send(200, "text/plain", "Hello from ESP32!");
+  });
+
+  server.begin();
+}
+
+void loop() {
+  server.handleClient();
+}
+```
+
+### For GPIO operations, use Arduino functions:
+
+```cpp
+// ✅ CORRECT - Arduino style
+const int LED_PIN = 2;
+
+void setup() {
+  pinMode(LED_PIN, OUTPUT);
+}
+
+void loop() {
+  digitalWrite(LED_PIN, HIGH);
+  delay(1000);
+  digitalWrite(LED_PIN, LOW);
+  delay(1000);
+}
+```
+
+````cpp
+// ❌ WRONG - ESP-IDF style (will fail in Arduino framework)
+#define BLINK_GPIO 2
+
+void setup() {
+  gpio_reset_pin((gpio_num_t)BLINK_GPIO);  // Don't use this
+  gpio_set_direction((gpio_num_t)BLINK_GPIO, GPIO_MODE_OUTPUT);
+}
+```## Why is the gitignore ignoring the Deno files?
 
 Because the purpose of this repository is to serve as the proper Docker container prep for the server side. Since the usage of Deno is specified in the Dockerfile, those files become unnecessary in the repository.
+````
