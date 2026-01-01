@@ -1,5 +1,8 @@
 # NuvyHub
 
+Yes I did use AI for this documentation its like 4 files and idc I'm leaving the rocket emojis okay???
+Boiler plate will be treated as boiler plate haha, inside the code too xd
+
 NuvyHub is a cloud-based ESP32 firmware compiler supporting **both Arduino and ESP-IDF frameworks**. Upload your Arduino sketch (.ino) or ESP-IDF C code (.c) and get a compiled .bin file ready to flash to your ESP32 board.
 
 ## Features
@@ -163,7 +166,8 @@ void setup() {
   gpio_reset_pin((gpio_num_t)BLINK_GPIO);  // Don't use this
   gpio_set_direction((gpio_num_t)BLINK_GPIO, GPIO_MODE_OUTPUT);
 }
-```## Why is the gitignore ignoring the Deno files?
+```
+````
+## Why is the gitignore ignoring the Deno files?
 
 Because the purpose of this repository is to serve as the proper Docker container prep for the server side. Since the usage of Deno is specified in the Dockerfile, those files become unnecessary in the repository.
-````
